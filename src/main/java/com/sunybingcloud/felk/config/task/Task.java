@@ -49,6 +49,11 @@ public class Task {
     builder.append("watts: ");
     builder.append(watts);
     builder.append(", ");
+    if (classToWatts != null) {
+      builder.append("class_to_watts: ");
+      builder.append(classToWatts.toString());
+      builder.append(", ");
+    }
     builder.append("image: ");
     builder.append(image);
     builder.append(", ");
