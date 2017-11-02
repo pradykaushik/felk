@@ -10,9 +10,7 @@ public class Schema {
   @JsonProperty
   private Collection<Task> tasks = new ArrayList<>();
 
-  public Collection<Task> getTasks() {
-    return tasks;
-  }
+  public Collection<Task> getTasks() {return tasks;}
 
   @Override
   public String toString() {
