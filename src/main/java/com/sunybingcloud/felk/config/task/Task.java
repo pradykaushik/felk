@@ -53,6 +53,11 @@ public class Task implements TaskRequest {
   }
 
   /**
+   * Dummy constructor just to help with jackson object construction.
+   */
+  public Task() {}
+
+  /**
    * Retrieve the task identifier.
    * The task identifier needs to be unique across all tasks and also
    *  across task instances.
