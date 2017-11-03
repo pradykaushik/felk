@@ -15,16 +15,29 @@ public class FelkScheduler implements Scheduler {
     this.taskScheduler = taskScheduler;
   }
 
+  /**
+   * Any previous resource offers are invalid. Fenzo scheduler needs to expire all leases.
+   */
   @Override
   public void registered(SchedulerDriver driver, Protos.FrameworkID frameworkId, Protos.MasterInfo masterInfo) {
-
+    System.out.println("Felk registered!");
+    taskScheduler.expireAllLeases();
   }
 
+  /**
+   * Similar to {@code registered()}, Fenzo's scheduler needs to expire all leases.
+   */
   @Override
   public void reregistered(SchedulerDriver driver, Protos.MasterInfo masterInfo) {
-
+    System.out.println("Felk reregistered!");
+    taskScheduler.expireAllLeases();
   }
 
+  /**
+   * 
+   * @param driver
+   * @param offers
+   */
   @Override
   public void resourceOffers(SchedulerDriver driver, List<Protos.Offer> offers) {
 

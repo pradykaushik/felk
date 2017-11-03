@@ -7,18 +7,20 @@ import com.netflix.fenzo.functions.Action1;
 import com.netflix.fenzo.plugins.BinPackingFitnessCalculators;
 import com.sunybingcloud.felk.config.Schema;
 import com.sunybingcloud.felk.config.task.Task;
-import com.sunybingcloud.felk.sched.FelkScheduler;
+import com.sunybingcloud.felk.sched.FelkSchedulerImpl;
 import org.apache.mesos.MesosSchedulerDriver;
 import org.apache.mesos.Protos;
 import org.apache.mesos.Scheduler;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class FelkFramework {
+class FelkFramework {
 
     private Collection<Task> taskQueue;
     private TaskScheduler taskScheduler;
@@ -54,7 +56,7 @@ public class FelkFramework {
         }
     }
 
-    public final class Builder {
+    final class Builder {
         private Map<String, VMTaskFitnessCalculator> fitnessCalculators = createFitnessCalculatorRegistry();
         private TaskScheduler taskScheduler;
         private TaskScheduler.Builder taskSchedulerBuilder = new TaskScheduler.Builder();
@@ -73,7 +75,7 @@ public class FelkFramework {
          * @param schema The workload configuration schema.
          * @return Builder
          */
-        public Builder withSchema(Schema schema) {
+        Builder withSchema(Schema schema) {
             // Input validation needs to have been done prior to this.
             taskQueue = schema.getTasks();
             // If no fitness calculator specified, then we're not going to be using one.
@@ -100,15 +102,15 @@ public class FelkFramework {
         }
     }
 
-    public FelkFramework() {}
+    FelkFramework() {}
 
-    public FelkFramework(Builder builder) {
+    FelkFramework(Builder builder) {
         taskQueue = builder.taskQueue;
         taskScheduler = builder.taskSchedulerBuilder.build();
-        felkScheduler = new FelkScheduler(taskScheduler);
+        felkScheduler = new FelkSchedulerImpl(taskScheduler);
     }
 
-    public FelkFramework buildSchedulerDriver(String mesosMaster) {
+    FelkFramework buildSchedulerDriver(String mesosMaster) {
         // Creating FrameworkInfo
         Protos.FrameworkInfo frameworkInfo = Protos.FrameworkInfo.newBuilder()
                 .setName("felk")
@@ -119,12 +121,22 @@ public class FelkFramework {
         return this;
     }
 
-    public void execute() {
+    /**
+     * Running a scheduling loop that iteratively calls {@link TaskScheduler#scheduleOnce(List, List)},
+     * by passing the current set of pending tasks and any new resource offers received from mesos.
+     * {@link com.sunybingcloud.felk.sched.FelkScheduler#leaseQueue} would contain the latest
+     * unused set of resource offers.
+     * Upon receipt of task assignment information from Fenzo's task scheduler, the
+     * corresponding tasks are launched on the hosts corresponding to the consumed offer.
+     * Upon launching a task, the respective {@link Task#instances} needs to be decremented.
+     */
+    void execute() {
+        List<VirtualMachineLease> newLeases = new ArrayList<>();
         // Need to launch felk to execute all the tasks using Fenzo's task scheduler.
         System.out.println("Executing...");
     }
 
-    public void shutdown() {
+    void shutdown() {
         System.out.println("Shutting down mesos scheduler driver...");
         mesosSchedulerDriver.stop();
         // Letting the runner know that the driver has been shutdown.
