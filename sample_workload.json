@@ -15,5 +15,9 @@
       "cmd": "java SimulateConstIncreaseCPULoad 0.01 4000 true 2",
       "inst": 1
     }
-  ]
+  ],
+  "fitness_calc": "cpuBinPacker",
+  "lease_offer_expiry_sec": 120,
+  "disable_shortfall_eval": true,
+  "lease_reject_action": "decline"
 }
