@@ -9,6 +9,7 @@ import org.apache.mesos.SchedulerDriver;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Basic structure and functionality of a FelkScheduler. Default implementations provided

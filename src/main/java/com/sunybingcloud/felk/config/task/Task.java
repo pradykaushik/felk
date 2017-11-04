@@ -2,12 +2,14 @@ package com.sunybingcloud.felk.config.task;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers;
 import com.netflix.fenzo.ConstraintEvaluator;
 import com.netflix.fenzo.TaskRequest;
 import com.netflix.fenzo.VMTaskFitnessCalculator;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Task implements TaskRequest {
@@ -34,13 +36,13 @@ public class Task implements TaskRequest {
   private String command;
 
   @JsonProperty("inst")
-  private int instances;
+  private AtomicInteger instances;
 
   private String taskID;
 
   public Task(String name, double cpu, int ram, double watts,
               Map<String, Double> classToWatts, String image,
-              String command, int instances) {
+              String command, AtomicInteger instances) {
     this.name = name;
     this.cpu = cpu;
     this.ram = ram;
@@ -49,13 +51,35 @@ public class Task implements TaskRequest {
     this.image = image;
     this.command = command;
     this.instances = instances;
-    this.taskID = TaskUtils.createTaskID(this.name, this.instances);
+    this.taskID = TaskUtils.TaskIdGenerator.createTaskID(this.name, this.instances);
   }
 
   /**
    * Dummy constructor just to help with jackson object construction.
    */
   public Task() {}
+
+  /**
+   * Retrieve the name of the task.
+   */
+  public String getName() {
+    return name;
+  }
+
+  /**
+   * Retrieve the command that needs to be executed for the task.
+   */
+  public String getCommand() {
+    return command;
+  }
+
+  /**
+   * Retrieve the current instance of the task.
+   * {@code instances} refers to the number pending instances of the task that need to be executed.
+   */
+  public AtomicInteger getInstances() {
+    return instances;
+  }
 
   /**
    * Retrieve the task identifier.
