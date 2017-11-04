@@ -25,8 +25,7 @@ public class FelkSchedulerImpl extends FelkScheduler {
   @Override
   public void resourceOffers(SchedulerDriver driver, List<Protos.Offer> offers) {
     for (Protos.Offer offer : offers) {
-      System.out.println("Received Offer with ID = " + offer.getId().getValue() + " and resources = " +
-          "[" + offer.getResourcesList() + "] for host [" + offer.getHostname() + "]");
+      System.out.println("Received Offer with ID = " + offer.getId().getValue() + " for host [" + offer.getHostname() + "]");
       leaseQueue.offer(new VMLeaseObject(offer));
     }
   }
