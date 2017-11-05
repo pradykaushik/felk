@@ -18,11 +18,9 @@ The following are required to be able to successfully run **Felk**.
 A workload configuration file consists of the following elements,
 * **tasks** - An array of JSON objects similar to the one in [Elektron](https://bitbucket.org/sunybingcloud/elektron).
 * **fitness_calc** - The name of fitness calculator to be used. The supported fitness calculators are,
-
-    1.  _cpuBinPacker_
-    2.  _memBinPacker_
-    3.  _cpuMemBinPacker_
-
+    -  _cpuBinPacker_
+    -  _memBinPacker_
+    -  _cpuMemBinPacker_
 * **lease_offer_expiry_sec** - Expiration period for resource offers. See [leaseOfferExpirySecs](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/TaskScheduler.java#L128).
 * **lease_reject_action** - Method that Fenzo's task scheduler will call to notify of rejected offers. See [leaseRejectAction](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/TaskScheduler.java#L113).
 
