@@ -13,7 +13,6 @@ import org.apache.commons.cli.ParseException;
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class FrameworkDriver {
 
@@ -64,6 +63,7 @@ public class FrameworkDriver {
 
     // Indicating whether Felk has completed executing all the instances of all the tasks.
     AtomicBoolean isDone = new AtomicBoolean(false);
+    AtomicBoolean canShutdown = new AtomicBoolean(false);
     // Launching
     // Issue: Unnecessary duplicate object of FelkFramework created in the beginning.
     //  This was a workaround to solve the issue of the non-static inner classes.
@@ -72,15 +72,16 @@ public class FrameworkDriver {
             .withSchema(schema)
             .withMasterLocation(masterLocation)
             .withDone(isDone)
+            .withShutdown(canShutdown)
             .build();
 
     // Running the framework.
     System.out.println("Felk Starting...");
     new Thread(framework::execute).start();
 
-    // Shutting down the framework once all tasks have been scheduled.
+    // Shutting down the framework once all tasks have been scheduled and all tasks have completed execution.
     while (true) {
-      if (isDone.get()) break;
+      if (isDone.get() && canShutdown.get()) break;
     }
     framework.shutdown();
     System.exit(0);
