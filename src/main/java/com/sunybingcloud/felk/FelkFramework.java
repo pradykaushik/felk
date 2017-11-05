@@ -11,11 +11,7 @@ import org.apache.mesos.MesosSchedulerDriver;
 import org.apache.mesos.Protos;
 import org.apache.mesos.Scheduler;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,12 +20,12 @@ import java.util.concurrent.atomic.AtomicReference;
 class FelkFramework {
 
     /**
-     * Tasks pending execution. Key = {@link Task#taskID}, Value = {@link Task}
+     * Tasks pending execution. Key = {@link Task#getId()}, Value = {@link Task}
      * Whenever Fenzo's task scheduler assigns a task to a host, then we need to decrement
      * the number of instances, of that task, that are remaining to be executed.
      * If all the instances of a task have been executed, then we remove the entry from {@code pendingTasks}
      */
-    private Map<String, TaskRequest> pendingTasks = new HashMap<>();
+    private Map<String, Task> pendingTasks = new HashMap<>();
     private TaskScheduler taskScheduler;
     private BlockingQueue<VirtualMachineLease> leasesQueue;
     private Map<String, String> launchedTasks;
@@ -39,6 +35,7 @@ class FelkFramework {
     private final AtomicReference<MesosSchedulerDriver> mesosSchedulerDriverRef = new AtomicReference<>();
     private Scheduler felkScheduler;
     private AtomicBoolean isDone;
+    private AtomicBoolean canShutdown;
 
     public class LeaseRejectActionBuilder {
         private Action1<VirtualMachineLease> leaseRejectAction;
@@ -72,6 +69,7 @@ class FelkFramework {
         private Collection<Task> pendingTaskQueue;
         private String masterLocation;
         private AtomicBoolean isDone;
+        private AtomicBoolean canShutdown;
 
         private Map<String, VMTaskFitnessCalculator> createFitnessCalculatorRegistry() {
             Map<String, VMTaskFitnessCalculator> fcr = new HashMap<>();
@@ -119,10 +117,18 @@ class FelkFramework {
         }
 
         /**
-         * Atomic boolean value indicating whether the framework is done or not.
+         * Indicating whether the framework is done launching all tasks.
          */
         Builder withDone(AtomicBoolean isDone) {
             this.isDone = isDone;
+            return this;
+        }
+
+        /**
+         * Indicating whether all the launched tasks have completed execution.
+         */
+        Builder withShutdown(AtomicBoolean canShutdown) {
+            this.canShutdown = canShutdown;
             return this;
         }
 
@@ -134,14 +140,24 @@ class FelkFramework {
     FelkFramework() {}
 
     FelkFramework(Builder builder) {
-        // Creating pendingTasks map.
-        builder.pendingTaskQueue.forEach( task -> pendingTasks.put(task.getId(), task));
+        // Assigning unique task ID to every instance of every pending task.
+        TaskUtils.TaskIdGenerator.assignTaskIds(builder.pendingTaskQueue);
+        // Creating pendingTasks map. For each instance of each task, an entry is made.
+        // TODO: Unnecessary many objects created. Fix this.
+        builder.pendingTaskQueue.forEach( pt -> {
+           for (int i = pt.getInstances().get(); i > 0; i--) {
+               Task t = new Task(pt);
+               t.setInstance(i);
+               pendingTasks.put(t.getId(), t);
+           }
+        });
         taskScheduler = builder.taskSchedulerBuilder.build();
         leasesQueue = new LinkedBlockingQueue<>();
         launchedTasks = new HashMap<>();
         runningTasks = new HashMap<>();
         mesosMaster = builder.masterLocation;
         isDone = builder.isDone;
+        canShutdown = builder.canShutdown;
         felkScheduler = new FelkSchedulerImpl(taskScheduler, leasesQueue, launchedTasks, runningTasks);
 
         // Creating FrameworkInfo
@@ -152,6 +168,7 @@ class FelkFramework {
         // Building the Mesos scheduler driver.
         mesosSchedulerDriver = new MesosSchedulerDriver(felkScheduler, frameworkInfo, mesosMaster);
         mesosSchedulerDriverRef.set(mesosSchedulerDriver);
+        new Thread(() -> mesosSchedulerDriver.run()).start();
     }
 
     /**
@@ -165,24 +182,33 @@ class FelkFramework {
      */
     void execute() {
         List<VirtualMachineLease> newLeases = new ArrayList<>();
-        // Need to launch felk to execute all the tasks using Fenzo's task scheduler.
-        mesosSchedulerDriver.run();
         while(true) {
             // Checking whether there are any pending tasks to schedule.
             if (pendingTasks.isEmpty()) {
-                // Letting the runner know that the driver has been shutdown.
-                // This trigger can be used to perform any necessary clean up before Felk stops running.
+                System.out.println("All tasks have been launched. No more pending tasks.");
+                // There are no more tasks pending execution.
                 isDone.set(true);
-                // return;
+                // Checking whether there are any tasks that are still executing.
+                // Also, checking is launchedTasks is empty. This is because, there could be tasks that were assigned
+                // to hosts by Fenzo's task scheduler, and were launched, but we haven't received a status update yet.
+                while (true) {
+                    if (launchedTasks.isEmpty() && runningTasks.isEmpty()) {
+                        System.out.println("All tasks have been launched and have completed execution");
+                        System.out.println("Shutting down Felk!");
+                        // All launched tasks have completed execution and there are no more tasks that are currently running.
+                        // It is okay to shutdown the framework.
+                        // TODO: When dealing with a continuous workload, we would need to constantly poll the pendingTasks.
+                        canShutdown.set(true);
+                        return;
+                    }
+                }
             }
 
-            if (isDone.get()) {
-                return;
-            }
             // Clearing all previous resource offers.
             newLeases.clear();
             // Recording all the new resource offers, if any.
             leasesQueue.drainTo(newLeases);
+
 
             // Using Fenzo's task scheduler to make task assignments on our behalf.
             // Task assignment information is then used to launch tasks on the hosts. If the task assignment
@@ -190,12 +216,12 @@ class FelkFramework {
             // then we need to call Fenzo's taskAssigner for each launched.
             SchedulingResult schedulingResult = taskScheduler
                 .scheduleOnce(new ArrayList<>(pendingTasks.values()), newLeases);
-            List<Protos.TaskInfo> taskInfos = new ArrayList<>();
             Map<String, VMAssignmentResult> schedulerAssignmentResult;
             if (!(schedulerAssignmentResult = schedulingResult.getResultMap()).isEmpty()) {
                 schedulerAssignmentResult.forEach((vm, tasksAssignment) -> {
                     List<VirtualMachineLease> leasesUsed = tasksAssignment.getLeasesUsed();
                     StringBuilder stringBuilder = new StringBuilder("Launching on host [" + vm + "] tasks [");
+                    List<Protos.TaskInfo> taskInfos = new ArrayList<>();
                     // As the slaveID is common for all task assignments to a given host.
                     Protos.SlaveID slaveID = leasesUsed.get(0).getOffer().getSlaveId();
                     tasksAssignment.getTasksAssigned().forEach(assignedTask -> {
@@ -203,15 +229,10 @@ class FelkFramework {
                         // Creating TaskInfo object.
                         taskInfos.add(TaskUtils.TaskInfoGenerator.getTaskInfo(slaveID,
                             ((Task) assignedTask.getRequest())));
-                        // Need to decrement the number of pending instances for this task.
-                        Task pTask = null;
-                        if ((pTask = ((Task) pendingTasks.get(assignedTask.getTaskId()))) != null) {
-                            if (pTask.getInstances().decrementAndGet() == 0) {
-                                pendingTasks.remove(pTask.getId());
-                            }
-                        }
-                        // Adding pTask to launched tasks. Not-Null check should always return true.
-                        if (pTask != null) launchedTasks.put(pTask.getId(), vm);
+                        // Removing task from the set of pending tasks.
+                        pendingTasks.remove(assignedTask.getTaskId());
+                        // Adding pTask to launched tasks.
+                        launchedTasks.put(assignedTask.getTaskId(), vm);
                         // Informing Fenzo that we have accepted this task assignment.
                         taskScheduler.getTaskAssigner().call(assignedTask.getRequest(), vm);
                     });
@@ -223,16 +244,12 @@ class FelkFramework {
                     mesosSchedulerDriver.launchTasks(offerIDs, taskInfos);
                 });
             }
-
-            // Going by Fenzo example and inserting a short delay before scheduling any new tasks.
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ie) {}
         }
     }
 
     void shutdown() {
         System.out.println("Shutting down mesos scheduler driver...");
-        mesosSchedulerDriver.stop();
+        Protos.Status status = mesosSchedulerDriver.stop();
+        System.out.println("Shutdown status = " + status.toString());
     }
 }
