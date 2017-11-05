@@ -2,11 +2,11 @@ package com.sunybingcloud.felk.config.task;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers;
 import com.netflix.fenzo.ConstraintEvaluator;
 import com.netflix.fenzo.TaskRequest;
 import com.netflix.fenzo.VMTaskFitnessCalculator;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,26 +38,34 @@ public class Task implements TaskRequest {
   @JsonProperty("inst")
   private AtomicInteger instances;
 
-  private String taskID;
+  /**
+   * Refers to the instance number for this task. Value would be in the range (0, {@code instances}].
+   * This would act as a key to retrieve the corresponding TaskID.
+   */
+  private int instance;
 
-  public Task(String name, double cpu, int ram, double watts,
-              Map<String, Double> classToWatts, String image,
-              String command, AtomicInteger instances) {
-    this.name = name;
-    this.cpu = cpu;
-    this.ram = ram;
-    this.watts = watts;
-    this.classToWatts = classToWatts;
-    this.image = image;
-    this.command = command;
-    this.instances = instances;
-    this.taskID = TaskUtils.TaskIdGenerator.createTaskID(this.name, this.instances);
-  }
+  /**
+   * TaskIds for each instance of the task.
+   */
+  Map<Integer, String> taskIDs = new HashMap<>();
 
   /**
    * Dummy constructor just to help with jackson object construction.
    */
   public Task() {}
+
+  public Task(Task otherTask) {
+    name = otherTask.name;
+    cpu = otherTask.cpu;
+    ram = otherTask.ram;
+    watts = otherTask.watts;
+    classToWatts = otherTask.classToWatts;
+    image = otherTask.image;
+    command = otherTask.command;
+    instances = otherTask.instances;
+    instance = otherTask.instance;
+    taskIDs = otherTask.taskIDs;
+  }
 
   /**
    * Retrieve the name of the task.
@@ -74,11 +82,38 @@ public class Task implements TaskRequest {
   }
 
   /**
-   * Retrieve the current instance of the task.
-   * {@code instances} refers to the number pending instances of the task that need to be executed.
+   * Retrieve the image tag
+   */
+  public String getImage() {
+    return image;
+  }
+
+  /**
+   * Retrieve all the TaskIds for all the instances of this task.
+   */
+  public Map<Integer, String> getTaskIDs() {
+    return taskIDs;
+  }
+
+  /**
+   * Retrieve the total number of instances of the task.
    */
   public AtomicInteger getInstances() {
     return instances;
+  }
+
+  /**
+   * Retrieve the instance number for this task.
+   */
+  public int getInstance() {
+    return instance;
+  }
+
+  /**
+   * Set the instance number for this task.
+   */
+  public void setInstance(int instance) {
+    this.instance = instance;
   }
 
   /**
@@ -88,7 +123,7 @@ public class Task implements TaskRequest {
    * @return a task identifier
    */
   public String getId() {
-    return taskID;
+    return taskIDs.get(instance);
   }
 
   /**
@@ -168,6 +203,23 @@ public class Task implements TaskRequest {
   }
 
   @Override
+  public int hashCode() {
+    return (getId() + name + cpu + ram + watts + classToWatts.toString() + image + command + instances).hashCode();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (! (o instanceof Task)) {
+      return false;
+    }
+    // Different instances of the same task are considered different tasks.
+    Task ot = (Task) o;
+    return (getId() + name + cpu + ram + watts + classToWatts.toString() + image + command + instances)
+            .equals(ot.getId() + ot.name + ot.cpu + ot.ram + ot.watts + ot.classToWatts.toString() +
+                    ot.image + ot.command + instances);
+  }
+
+  @Override
   public String toString() {
     StringBuilder builder = new StringBuilder("Task [");
     builder.append("name: ");
@@ -194,6 +246,9 @@ public class Task implements TaskRequest {
     builder.append(command);
     builder.append(", ");
     builder.append("inst: ");
+    builder.append(instance);
+    builder.append(", ");
+    builder.append("total_insts: ");
     builder.append(instances);
     builder.append("]");
     return builder.toString();
