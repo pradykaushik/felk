@@ -9,7 +9,6 @@ import org.apache.mesos.SchedulerDriver;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Basic structure and functionality of a FelkScheduler. Default implementations provided
@@ -68,6 +67,8 @@ public abstract class FelkScheduler implements Scheduler {
      */
     @Override
     public void statusUpdate(SchedulerDriver driver, Protos.TaskStatus status) {
+        System.out.println("Task Status : task [" + status.getTaskId().getValue() + "], " +
+                "state [" + status.getState() + "]");
         if (isTerminal(status)) {
             // Need to inform Fenzo's task scheduler to unassign the task, which was
             // previously running on a particular host.
@@ -76,9 +77,12 @@ public abstract class FelkScheduler implements Scheduler {
 
             // Need to update the list of running tasks.
             runningTasks.remove(status.getTaskId().getValue());
+            // Need to remove the task from the set of launched tasks.
+            // As Fenzo has already been informed to unassign the task, it's okay to remove entry
+            // from launchedTasks.
+            launchedTasks.remove(status.getTaskId().getValue());
         } else if (isActive(status)) {
-            // No need to inform Fenzo's task scheduler.
-            // Need to add the task to the set of running tasks.
+            // Adding the task to the list of running tasks.
             // TODO: Strip out hostname from slaveID and store only hostname.
             runningTasks.put(status.getTaskId().getValue(), status.getSlaveId().getValue());
         }
@@ -118,9 +122,9 @@ public abstract class FelkScheduler implements Scheduler {
     protected boolean isTerminal(Protos.TaskStatus taskStatus) {
        switch (taskStatus.getState()) {
            case TASK_FINISHED:
-           case TASK_ERROR:
            case TASK_FAILED:
            case TASK_KILLED:
+           case TASK_LOST:
                return true;
            default:
                return false;
@@ -136,8 +140,6 @@ public abstract class FelkScheduler implements Scheduler {
     protected boolean isActive(Protos.TaskStatus taskStatus) {
         switch (taskStatus.getState()) {
             case TASK_RUNNING:
-            case TASK_STAGING:
-            case TASK_STARTING:
                 return true;
             default:
                 return false;
