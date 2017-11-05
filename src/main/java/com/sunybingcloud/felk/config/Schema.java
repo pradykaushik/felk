@@ -24,11 +24,21 @@ public class Schema {
   @JsonProperty("lease_reject_action")
   private String leaseRejectAction;
 
-  public Collection<Task> getTasks() {return tasks;}
-  public String getFitnessCalculator() {return fitnessCalculator;}
-  public long getLeaseOfferExpirySeconds() {return leaseOfferExpirySeconds;}
-  public boolean isDisableShortfallEvaluation() {return disableShortfallEvaluation;}
-  public String getLeaseRejectAction() {return leaseRejectAction;}
+  public Collection<Task> getTasks() {
+    return tasks;
+  }
+  public String getFitnessCalculator() {
+    return fitnessCalculator;
+  }
+  public long getLeaseOfferExpirySeconds() {
+    return leaseOfferExpirySeconds;
+  }
+  public boolean isDisableShortfallEvaluation() {
+    return disableShortfallEvaluation;
+  }
+  public String getLeaseRejectAction() {
+    return leaseRejectAction;
+  }
 
   @Override
   public String toString() {
