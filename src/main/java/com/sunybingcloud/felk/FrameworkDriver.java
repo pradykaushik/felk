@@ -33,7 +33,8 @@ public class FrameworkDriver {
     // Printing possible command line options and exiting.
     if (commandLine.hasOption("help")) {
       HelpFormatter helpFormatter = new HelpFormatter();
-      helpFormatter.printHelp("java -jar build/libs/felk-1.0-SNAPSHOT.jar [-h] --config FILE --master MASTER_LOCATION", CLIBuilder.options);
+      helpFormatter.printHelp("java -jar build/libs/felk-1.0-SNAPSHOT.jar [-h] --config FILE " +
+              "--master MASTER_LOCATION", CLIBuilder.options);
       System.exit(0);
     }
 

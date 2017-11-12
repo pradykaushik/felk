@@ -115,8 +115,8 @@ class FelkFramework {
         }
 
         /**
-         * Initialize the location string of the Mesos master daemon.
-         * @param masterLocation Location string of the mesos master in the form <host>:<port>
+         * Initialize the location of the Mesos master daemon.
+         * @param masterLocation Location of the mesos master in the form <host>:<port>
          * @return Builder
          */
         Builder withMasterLocation(String masterLocation) {
@@ -197,7 +197,7 @@ class FelkFramework {
                 // There are no more tasks pending execution.
                 isDone.set(true);
                 // Checking whether there are any tasks that are still executing.
-                // Also, checking is launchedTasks is empty. This is because, there could be tasks that were assigned
+                // Also, checking if launchedTasks is empty. This is because, there could be tasks that were assigned
                 // to hosts by Fenzo's task scheduler, and were launched, but we haven't received a status update yet.
                 while (true) {
                     if (launchedTasks.isEmpty() && runningTasks.isEmpty()) {

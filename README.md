@@ -19,9 +19,9 @@ A workload configuration file consists of the following elements,
 
 - **tasks** - An array of JSON objects similar to the one in [Elektron](https://bitbucket.org/sunybingcloud/elektron).
 - **fitness_calc** - The name of fitness calculator to be used. The supported fitness calculators are,
-    -  _cpuBinPacker_
-    -  _memBinPacker_
-    -  _cpuMemBinPacker_
+    -  _[cpuBinPacker](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/plugins/BinPackingFitnessCalculators.java)_
+    -  _[memBinPacker](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/plugins/BinPackingFitnessCalculators.java)_
+    -  _[cpuMemBinPacker](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/plugins/BinPackingFitnessCalculators.java)_
 - **lease_offer_expiry_sec** - Expiration period for resource offers. See [leaseOfferExpirySecs](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/TaskScheduler.java#L128).
 - **lease_reject_action** - Method that Fenzo's task scheduler will call to notify of rejected offers. See [leaseRejectAction](https://github.com/Netflix/Fenzo/blob/master/fenzo-core/src/main/java/com/netflix/fenzo/TaskScheduler.java#L113).
 
@@ -53,9 +53,9 @@ A sample workload configuration file is shown below.
 }
 ```
 
-Run the following command to execute Felk with master location as _abcd:5050_ and config file as _sample_minife_workload.json_.
+Run the following command to execute Felk with master location as _abcd:5050_ and config file as _sample_workload.json_.
 ```commandline
-java -jar felk-1.0-SNAPSHOT.jar --master abcd:5050 --config sample_minife_workload.json
+java -jar felk-1.0-SNAPSHOT.jar --master abcd:5050 --config sample_workload.json
 ```
 
 
