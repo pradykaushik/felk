@@ -21,23 +21,87 @@ import java.util.concurrent.BlockingQueue;
  * new resource offers so that they can be used assign tasks.
  */
 public abstract class FelkScheduler implements Scheduler {
-    protected TaskScheduler taskScheduler;
-    protected BlockingQueue<VirtualMachineLease> leaseQueue;
+    private TaskScheduler taskScheduler;
+    private BlockingQueue<VirtualMachineLease> leasesQueue;
     // Maintain TaskID and hostname of launched tasks, that are currently running.
-    protected Map<String, String> runningTasks;
+    private Map<String, String> runningTasks;
 
     /**
      * Maintain TaskID and hostname of launched tasks. TaskID would be retrieved from
-     * the {@link com.netflix.fenzo.TaskAssignmentResult} object. Implementer of FelkScheduler should make sure to
-     * update this data structure upon receipt of {@link com.netflix.fenzo.VMAssignmentResult}.
+     * the {@link com.netflix.fenzo.TaskAssignmentResult} object. Implementer of FelkScheduler
+     * should make sure to update this data structure upon receipt of
+     * {@link com.netflix.fenzo.VMAssignmentResult}.
      */
-    protected Map<String, String> launchedTasks;
+    private Map<String, String> launchedTasks;
+
+    /**
+     * Set the task scheduler.
+     * @param taskScheduler Task scheduler configured based on the user specified config.
+     */
+    protected void setTaskScheduler(final TaskScheduler taskScheduler) {
+        this.taskScheduler = taskScheduler;
+    }
+
+    /**
+     * Retrieved the task scheduler that is Felk is uses to make scheduling decisions.
+     * @return task scheduler.
+     */
+    protected TaskScheduler getTaskScheduler() {
+        return taskScheduler;
+    }
+
+    /**
+     * Store the new set of resource offers received from the mesos callback mechanism.
+     * @param leasesQueue new set of resource offers.
+     */
+    protected void setLeasesQueue(final BlockingQueue<VirtualMachineLease> leasesQueue) {
+        this.leasesQueue = leasesQueue;
+    }
+
+    /**
+     * Retrieved the new set of resource offers received from mesos.
+     * @return new set of resource offers.
+     */
+    protected BlockingQueue<VirtualMachineLease> getLeasesQueue() {
+        return leasesQueue;
+    }
+
+    /**
+     * Set the {@link Map} of running tasks, where key=TaskID, value=hostname.
+     */
+    protected void setRunningTasks(final Map<String, String> runningTasks) {
+        this.runningTasks = runningTasks;
+    }
+
+    /**
+     * Retrieve the {@link Map} of running tasks, where key=TaskID, value=hostname.
+     */
+    protected Map<String, String> getRunningTasks() {
+        return runningTasks;
+    }
+
+    /**
+     * Set the {@link Map} of launched tasks, where key=TaskID, value=hostname.
+     */
+    protected void setLaunchedTasks(final Map<String, String> launchedTasks) {
+        this.launchedTasks = launchedTasks;
+    }
+
+    /**
+     * Retrieve the {@link Map} of launched tasks, where key=TaskID, value=hostname.
+     */
+    protected Map<String, String> getLaunchedTasks() {
+        return launchedTasks;
+    }
 
     /**
      * Any previous resource offers are invalid. Fenzo scheduler needs to expire all leases.
      */
     @Override
-    public void registered(SchedulerDriver driver, Protos.FrameworkID frameworkId, Protos.MasterInfo masterInfo) {
+    public void registered(
+            final SchedulerDriver driver,
+            final Protos.FrameworkID frameworkId,
+            final Protos.MasterInfo masterInfo) {
         System.out.println("Felk registered!");
         taskScheduler.expireAllLeases();
     }
@@ -46,7 +110,7 @@ public abstract class FelkScheduler implements Scheduler {
      * Similar to {@code registered()}, Fenzo's scheduler needs to expire all leases.
      */
     @Override
-    public void reregistered(SchedulerDriver driver, Protos.MasterInfo masterInfo) {
+    public void reregistered(final SchedulerDriver driver, final Protos.MasterInfo masterInfo) {
         System.out.println("Felk reregistered!");
         taskScheduler.expireAllLeases();
     }
@@ -55,20 +119,20 @@ public abstract class FelkScheduler implements Scheduler {
      * The resource offer needs to be expireed immediately by Fenzo's task scheduler.
      */
     @Override
-    public void offerRescinded(SchedulerDriver driver, Protos.OfferID offerId) {
+    public void offerRescinded(final SchedulerDriver driver, final Protos.OfferID offerId) {
         System.out.println("Offer [" + offerId.getValue() + "] rescinded.");
         taskScheduler.expireLease(offerId.getValue());
     }
 
     /**
      * Informing Fenzo's task scheduler if TERMINAL state received for a task.
-     * Terminal states imply that the task is no longer executing. See {@link org.apache.mesos.Protos.TaskState}
-     * for more information.
+     * Terminal states imply that the task is no longer executing.
+     * See {@link org.apache.mesos.Protos.TaskState} for more information.
      */
     @Override
-    public void statusUpdate(SchedulerDriver driver, Protos.TaskStatus status) {
-        System.out.println("Task Status : task [" + status.getTaskId().getValue() + "], " +
-                "state [" + status.getState() + "]");
+    public void statusUpdate(final SchedulerDriver driver, final Protos.TaskStatus status) {
+        System.out.println("Task Status : task [" + status.getTaskId().getValue() + "], "
+                + "state [" + status.getState() + "]");
         if (isTerminal(status)) {
             // Need to inform Fenzo's task scheduler to unassign the task, which was
             // previously running on a particular host.
@@ -83,33 +147,61 @@ public abstract class FelkScheduler implements Scheduler {
             launchedTasks.remove(status.getTaskId().getValue());
         } else if (isActive(status)) {
             // Adding the task to the list of running tasks.
-            // TODO: Strip out hostname from slaveID and store only hostname.
+            // TODO Strip out hostname from slaveID and store only hostname.
             runningTasks.put(status.getTaskId().getValue(), status.getSlaveId().getValue());
         }
     }
 
+    /**
+     * Message received from the executor.
+     */
     @Override
-    public void frameworkMessage(SchedulerDriver driver, Protos.ExecutorID executorId, Protos.SlaveID slaveId, byte[] data) {
-        System.out.println("Framework message host [ " + slaveId.getValue() + "] = " + Arrays.toString(data));
+    public void frameworkMessage(
+            final SchedulerDriver driver,
+            final Protos.ExecutorID executorId,
+            final Protos.SlaveID slaveId,
+            final byte[] data) {
+        System.out.println("Framework message host [ " + slaveId.getValue()
+                + "] = " + Arrays.toString(data));
     }
 
+    /**
+     * Invoked when the scheduler becomes disconnected with the mesos master.
+     */
     @Override
-    public void disconnected(SchedulerDriver driver) {
+    public void disconnected(final SchedulerDriver driver) {
         System.out.println("Framework disconnected!");
     }
 
+    /**
+     * Invoked when a slave has been determined unreachable.
+     */
     @Override
-    public void slaveLost(SchedulerDriver driver, Protos.SlaveID slaveId) {
+    public void slaveLost(final SchedulerDriver driver, final Protos.SlaveID slaveId) {
         System.out.println("Slave [" + slaveId.getValue() + "] lost!");
     }
 
+    /**
+     * Invoked when an executor has exited/terminated.
+     * @param driver
+     * @param executorId
+     * @param slaveId
+     * @param status
+     */
     @Override
-    public void executorLost(SchedulerDriver driver, Protos.ExecutorID executorId, Protos.SlaveID slaveId, int status) {
+    public void executorLost(
+            final SchedulerDriver driver,
+            final Protos.ExecutorID executorId,
+            final Protos.SlaveID slaveId,
+            final int status) {
         System.out.println("Executor lost!");
     }
 
+    /**
+     * Invoked when there is an unrecoverable error in the scheduler or scheduler driver.
+     */
     @Override
-    public void error(SchedulerDriver driver, String message) {
+    public void error(final SchedulerDriver driver, final String message) {
         System.out.println("Error: " + message);
     }
 
@@ -119,16 +211,16 @@ public abstract class FelkScheduler implements Scheduler {
      * @param taskStatus status of the task
      * @return is the task in a terminal state
      */
-    protected boolean isTerminal(Protos.TaskStatus taskStatus) {
-       switch (taskStatus.getState()) {
-           case TASK_FINISHED:
-           case TASK_FAILED:
-           case TASK_KILLED:
-           case TASK_LOST:
-               return true;
-           default:
-               return false;
-       }
+    protected boolean isTerminal(final Protos.TaskStatus taskStatus) {
+        switch (taskStatus.getState()) {
+            case TASK_FINISHED:
+            case TASK_FAILED:
+            case TASK_KILLED:
+            case TASK_LOST:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -137,7 +229,7 @@ public abstract class FelkScheduler implements Scheduler {
      * @param taskStatus status of the task
      * @return is the task in an active state
      */
-    protected boolean isActive(Protos.TaskStatus taskStatus) {
+    protected boolean isActive(final Protos.TaskStatus taskStatus) {
         switch (taskStatus.getState()) {
             case TASK_RUNNING:
                 return true;
