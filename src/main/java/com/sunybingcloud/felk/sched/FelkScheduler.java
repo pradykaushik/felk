@@ -183,10 +183,6 @@ public abstract class FelkScheduler implements Scheduler {
 
     /**
      * Invoked when an executor has exited/terminated.
-     * @param driver
-     * @param executorId
-     * @param slaveId
-     * @param status
      */
     @Override
     public void executorLost(
