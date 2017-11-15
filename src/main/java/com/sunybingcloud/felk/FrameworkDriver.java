@@ -62,8 +62,10 @@ public final class FrameworkDriver {
             System.exit(0);
         }
 
-        // Indicating whether Felk has completed executing all the instances of all the tasks.
+        // Indicating whether Felk has launched all the tasks.
         AtomicBoolean isDone = new AtomicBoolean(false);
+        // Indicating whether all the tasks have completed execution, in which case we can shutdown
+        // the framework.
         AtomicBoolean canShutdown = new AtomicBoolean(false);
         // Launching
         // Issue: Unnecessary duplicate object of FelkFramework created in the beginning.

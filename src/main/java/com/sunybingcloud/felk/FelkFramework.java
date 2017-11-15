@@ -6,6 +6,7 @@ import com.netflix.fenzo.VMAssignmentResult;
 import com.netflix.fenzo.VMTaskFitnessCalculator;
 import com.netflix.fenzo.VirtualMachineLease;
 import com.netflix.fenzo.functions.Action1;
+import com.netflix.fenzo.functions.Action2;
 import com.netflix.fenzo.plugins.BinPackingFitnessCalculators;
 import com.sunybingcloud.felk.config.Schema;
 import com.sunybingcloud.felk.config.task.Task;
@@ -37,6 +38,13 @@ class FelkFramework {
     private Map<String, Task> pendingTasks = new HashMap<>();
     private TaskScheduler taskScheduler;
     private BlockingQueue<VirtualMachineLease> leasesQueue;
+
+    /**
+     * Maintain TaskID and hostname of launched tasks. TaskID would be retrieved from
+     * the {@link com.netflix.fenzo.TaskAssignmentResult} object.
+     * Update this data structure upon receipt of {@link com.netflix.fenzo.VMAssignmentResult}, and
+     * also when a terminal status message (LOST, FAILED, KILLED, FINISHED) is received.
+     */
     private Map<String, String> launchedTasks;
     private Map<String, String> runningTasks;
     private MesosSchedulerDriver mesosSchedulerDriver;
@@ -46,6 +54,9 @@ class FelkFramework {
     private Scheduler felkScheduler;
     private AtomicBoolean isDone;
     private AtomicBoolean canShutdown;
+    private Action2<String, String> onTaskLaunch;
+    private Action2<String, String> onTaskRunning;
+    private Action1<String> onTaskComplete;
 
     public class LeaseRejectActionBuilder {
         private Action1<VirtualMachineLease> leaseRejectAction;
@@ -159,7 +170,7 @@ class FelkFramework {
 
     }
 
-    FelkFramework(final Builder builder) {
+    private FelkFramework(final Builder builder) {
         // Assigning unique task ID to every instance of every pending task.
         TaskUtils.TaskIdGenerator.assignTaskIds(builder.pendingTaskQueue);
         // Creating pendingTasks map. For each instance of each task, an entry is made.
@@ -178,8 +189,33 @@ class FelkFramework {
         mesosMaster = builder.masterLocation;
         isDone = builder.isDone;
         canShutdown = builder.canShutdown;
+        onTaskLaunch = (taskId, vmHostname) -> {
+            // Remove the task from the list of pending tasks.
+            pendingTasks.remove(taskId);
+            // Register the TaskID of the task and the hostname of the vm that this task was
+            // assigned to.
+            launchedTasks.put(taskId, vmHostname);
+        };
+
+        onTaskRunning = (taskId, slaveId) -> {
+            // Adding the task to the list of running tasks.
+            runningTasks.put(taskId, slaveId);
+        };
+
+        onTaskComplete = taskId -> {
+            // Need to inform Fenzo's task scheduler to unassign the task, which was
+            // previously running on a particular host.
+            taskScheduler.getTaskUnAssigner().call(taskId, launchedTasks.get(taskId));
+            // Task is no longer running.
+            runningTasks.remove(taskId);
+            // Need to remove the task from the set of launched tasks.
+            // As Fenzo has already been informed to unassign the task, it's okay to remove entry
+            // from launchedTasks.
+            launchedTasks.remove(taskId);
+        };
+
         felkScheduler = new FelkSchedulerImpl(taskScheduler, leasesQueue,
-                launchedTasks, runningTasks);
+                onTaskRunning, onTaskComplete);
 
         // Creating FrameworkInfo
         Protos.FrameworkInfo frameworkInfo = Protos.FrameworkInfo.newBuilder()
@@ -256,10 +292,8 @@ class FelkFramework {
                         // Creating TaskInfo object.
                         taskInfos.add(TaskUtils.TaskInfoGenerator.getTaskInfo(slaveID,
                                 ((Task) assignedTask.getRequest())));
-                        // Removing task from the set of pending tasks.
-                        pendingTasks.remove(assignedTask.getTaskId());
                         // Adding pTask to launched tasks.
-                        launchedTasks.put(assignedTask.getTaskId(), vm);
+                        onTaskLaunch.call(assignedTask.getTaskId(), vm);
                         // Informing Fenzo that we have accepted this task assignment.
                         taskScheduler.getTaskAssigner().call(assignedTask.getRequest(), vm);
                     });

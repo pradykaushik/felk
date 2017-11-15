@@ -2,12 +2,13 @@ package com.sunybingcloud.felk.sched;
 
 import com.netflix.fenzo.TaskScheduler;
 import com.netflix.fenzo.VirtualMachineLease;
+import com.netflix.fenzo.functions.Action1;
+import com.netflix.fenzo.functions.Action2;
 import org.apache.mesos.Protos;
 import org.apache.mesos.Scheduler;
 import org.apache.mesos.SchedulerDriver;
 
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -23,16 +24,8 @@ import java.util.concurrent.BlockingQueue;
 public abstract class FelkScheduler implements Scheduler {
     private TaskScheduler taskScheduler;
     private BlockingQueue<VirtualMachineLease> leasesQueue;
-    // Maintain TaskID and hostname of launched tasks, that are currently running.
-    private Map<String, String> runningTasks;
-
-    /**
-     * Maintain TaskID and hostname of launched tasks. TaskID would be retrieved from
-     * the {@link com.netflix.fenzo.TaskAssignmentResult} object. Implementer of FelkScheduler
-     * should make sure to update this data structure upon receipt of
-     * {@link com.netflix.fenzo.VMAssignmentResult}.
-     */
-    private Map<String, String> launchedTasks;
+    private Action2<String, String> onTaskRunning;
+    private Action1<String> onTaskComplete;
 
     /**
      * Set the task scheduler.
@@ -67,31 +60,31 @@ public abstract class FelkScheduler implements Scheduler {
     }
 
     /**
-     * Set the {@link Map} of running tasks, where key=TaskID, value=hostname.
+     * Set the action to be taken when an active status message is received for a task.
      */
-    protected void setRunningTasks(final Map<String, String> runningTasks) {
-        this.runningTasks = runningTasks;
+    protected void setOnTaskRunning(final Action2<String, String> onTaskRunning) {
+        this.onTaskRunning = onTaskRunning;
     }
 
     /**
-     * Retrieve the {@link Map} of running tasks, where key=TaskID, value=hostname.
+     * Retrieve the action to be taken when an active status is received for the task.
      */
-    protected Map<String, String> getRunningTasks() {
-        return runningTasks;
+    protected Action2<String, String> getOnTaskRunning() {
+        return onTaskRunning;
     }
 
     /**
-     * Set the {@link Map} of launched tasks, where key=TaskID, value=hostname.
+     * Set the action to be taken when a terminal status message is received for a task.
      */
-    protected void setLaunchedTasks(final Map<String, String> launchedTasks) {
-        this.launchedTasks = launchedTasks;
+    protected void setOnTaskComplete(final Action1<String> onTaskComplete) {
+        this.onTaskComplete = onTaskComplete;
     }
 
     /**
-     * Retrieve the {@link Map} of launched tasks, where key=TaskID, value=hostname.
+     * Retrieve the action to be taken when a terminal status message is received for a task.
      */
-    protected Map<String, String> getLaunchedTasks() {
-        return launchedTasks;
+    protected Action1<String> getOnTaskComplete() {
+        return onTaskComplete;
     }
 
     /**
@@ -134,21 +127,9 @@ public abstract class FelkScheduler implements Scheduler {
         System.out.println("Task Status : task [" + status.getTaskId().getValue() + "], "
                 + "state [" + status.getState() + "]");
         if (isTerminal(status)) {
-            // Need to inform Fenzo's task scheduler to unassign the task, which was
-            // previously running on a particular host.
-            taskScheduler.getTaskUnAssigner().call(status.getTaskId().getValue(),
-                    launchedTasks.get(status.getTaskId().getValue()));
-
-            // Need to update the list of running tasks.
-            runningTasks.remove(status.getTaskId().getValue());
-            // Need to remove the task from the set of launched tasks.
-            // As Fenzo has already been informed to unassign the task, it's okay to remove entry
-            // from launchedTasks.
-            launchedTasks.remove(status.getTaskId().getValue());
+            onTaskComplete.call(status.getTaskId().getValue());
         } else if (isActive(status)) {
-            // Adding the task to the list of running tasks.
-            // TODO Strip out hostname from slaveID and store only hostname.
-            runningTasks.put(status.getTaskId().getValue(), status.getSlaveId().getValue());
+            onTaskRunning.call(status.getTaskId().getValue(), status.getSlaveId().getValue());
         }
     }
 
