@@ -196,7 +196,7 @@ class FelkFramework {
      * Running a scheduling loop that iteratively calls
      * {@link TaskScheduler#scheduleOnce(List, List)}, by passing the current set of pending tasks
      * and any new resource offers received from mesos.
-     * {@link com.sunybingcloud.felk.sched.FelkScheduler#leaseQueue} would contain the latest
+     * {@link com.sunybingcloud.felk.sched.FelkScheduler#leasesQueue} would contain the latest
      * unused set of resource offers. Upon receipt of task assignment information from Fenzo's
      * task scheduler, the corresponding tasks are launched on the hosts corresponding to the
      * consumed offer. Upon launching a task, the respective {@link Task#instances} needs to be
