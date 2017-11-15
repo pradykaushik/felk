@@ -1,0 +1,23 @@
+{
+  "tasks": [
+    {
+      "name": "minife",
+      "cpu": 3.0,
+      "ram": 4096,
+      "watts": 63.141,
+      "class_to_watts": {
+        "A": 93.062,
+        "B": 65.552,
+        "C": 57.897,
+        "D": 60.729
+      },
+      "image": "rdelvalle/minife:electron1",
+      "cmd": "cd src && mpirun -np 3 miniFE.x -nx 100 -ny 100 -nz 100",
+      "inst": 10
+    }
+  ],
+  "fitness_calc": "cpuBinPacker",
+  "lease_offer_expiry_sec": 120,
+  "disable_shortfall_eval": true,
+  "lease_reject_action": "decline"
+}
