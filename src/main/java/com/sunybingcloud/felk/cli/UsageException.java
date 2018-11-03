@@ -1,18 +1,18 @@
 package com.sunybingcloud.felk.cli;
 
-public class UsageException extends RuntimeException {
-  private String message;
+public final class UsageException extends RuntimeException {
+    private String message;
 
-  public UsageException(String message) {
-    this.message = message;
-  }
+    public UsageException(final String message) {
+        this.message = message;
+    }
 
-  public UsageException() {
-    this.message = "Usage Error!" + "\n" + CLIBuilder.options.toString();
-  }
+    public UsageException() {
+        this.message = "Usage Error!" + "\n" + CLIBuilder.getOptions();
+    }
 
-  @Override
-  public String getMessage() {
-    return message;
-  }
+    @Override
+    public String getMessage() {
+        return message;
+    }
 }
