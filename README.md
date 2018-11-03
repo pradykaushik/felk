@@ -1,7 +1,7 @@
 # Felk
 
 A Mesos framework that uses Netflix's [Fenzo](https://github.com/Netflix/Fenzo) to make scheduling decisions.
-Taken inspiration from [Elektron](https://bitbucket.org/sunybingcloud/elektron), a pluggable Mesos framework.
+Taken inspiration from [Elektron](https://gitlab.com/spdf/elektron), a pluggable Mesos framework.
 
 ###Building the project
 Run the following command to build an executable jar file.
