@@ -3,14 +3,14 @@
 A Mesos framework that uses Netflix's [Fenzo](https://github.com/Netflix/Fenzo) to make scheduling decisions.
 Taken inspiration from [Elektron](https://gitlab.com/spdf/elektron), a pluggable Mesos framework.
 
-###Building the project
+### Building the project
 Run the following command to build an executable jar file.
 ```commandline
 ./gradlew build
 ```
 _Note: The executable jar file would be stored in **build/libs/**._
 
-###Running Felk
+### Running Felk
 The following are required to be able to successfully run **Felk**.
 * Workload configuration file
 * Hostname and port of the mesos master
