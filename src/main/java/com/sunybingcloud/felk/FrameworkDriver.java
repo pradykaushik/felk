@@ -84,7 +84,7 @@ public final class FrameworkDriver {
         // Issue: Unnecessary duplicate object of FelkFramework created in the beginning.
         //  This was a workaround to solve the issue of the non-static inner classes.
         // TODO Fix this.
-        FelkFramework framework = new FelkFramework().new Builder()
+        FelkFramework framework = new FelkFramework.Builder()
                 .withSchema(schema)
                 .withMasterLocation(masterLocation)
                 .withDone(isDone)

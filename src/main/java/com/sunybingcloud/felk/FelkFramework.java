@@ -71,51 +71,63 @@ class FelkFramework {
     private Action2<String, String> onTaskRunning;
     private Action1<String> onTaskComplete;
 
-    public class LeaseRejectActionBuilder {
-        private Action1<VirtualMachineLease> leaseRejectAction;
-        private Map<String, Action1<VirtualMachineLease>> leaseRejectActionsDirectory
-                = createLeaseRejectActions();
+    /**
+     * Lease rejection actions supported.
+     * Storing a mapping between the name of the action and the action itself. This allows
+     * for the action to be specified in the configuration.
+     */
+    private Map<String, Action1<VirtualMachineLease>> leaseRejectActions;
+    private enum LeaseRejectActionName {
+        DECLINE("decline");
 
-        /**
-         * Defining different leaseRejectActions associated with a name.
-         * This is done in order for the user to be able to specify the lease reject action in
-         * the configuration file.
-         * @return a mapping from a name to a lease reject action.
-         */
-        private Map<String, Action1<VirtualMachineLease>> createLeaseRejectActions() {
-            Map<String, Action1<VirtualMachineLease>> actions = new HashMap<>();
-            actions.put("decline", virtualMachineLease ->
-                    mesosSchedulerDriverRef.get().declineOffer(
-                            virtualMachineLease.getOffer().getId()));
-            return actions;
+        private String name;
+
+        LeaseRejectActionName(final String name) {
+            this.name = name;
         }
 
-        public LeaseRejectActionBuilder withLeaseRejectAction(final String actionName) {
-            leaseRejectAction = leaseRejectActionsDirectory.get(actionName);
-            return this;
+        String get() {
+            return this.name;
         }
 
-        public Action1<VirtualMachineLease> build() {
-            return leaseRejectAction;
+        static boolean isValidActionName(final String name) {
+            for (LeaseRejectActionName actionName : LeaseRejectActionName.values()) {
+                if (actionName.get().equals(name)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
-    final class Builder {
-        private Map<String, VMTaskFitnessCalculator> fitnessCalculators
-                = createFitnessCalculatorRegistry();
-        private TaskScheduler.Builder taskSchedulerBuilder = new TaskScheduler.Builder();
+    private void initLeaseRejectActions() {
+        leaseRejectActions = new HashMap<>();
+        leaseRejectActions.put("decline", virtualMachineLease ->
+                mesosSchedulerDriverRef.get().declineOffer(
+                    virtualMachineLease.getOffer().getId()));
+    }
+
+    /**
+     * Fitness calculators supported.
+     */
+    private Map<String, VMTaskFitnessCalculator> fitnessCalculators;
+
+    private void initFitnessCalculators() {
+        fitnessCalculators = new HashMap<>();
+        fitnessCalculators.put("cpuBinPacker", BinPackingFitnessCalculators.cpuBinPacker);
+        fitnessCalculators.put("memBinPacker", BinPackingFitnessCalculators.memoryBinPacker);
+        fitnessCalculators.put("cpuMemBinPacker", BinPackingFitnessCalculators.cpuMemBinPacker);
+    }
+
+    static final class Builder {
+        private String fitnessCalculator;
+        private long leaseOfferExpirySeconds;
+        private boolean isShortFallEvaluationDisabled;
+        private String leaseRejectActionName;
         private Collection<Task> pendingTaskQueue;
         private String masterLocation;
         private AtomicBoolean isDone;
         private AtomicBoolean canShutdown;
-
-        private Map<String, VMTaskFitnessCalculator> createFitnessCalculatorRegistry() {
-            Map<String, VMTaskFitnessCalculator> fcr = new HashMap<>();
-            fcr.put("cpuBinPacker", BinPackingFitnessCalculators.cpuBinPacker);
-            fcr.put("memBinPacker", BinPackingFitnessCalculators.memoryBinPacker);
-            fcr.put("cpuMemBinPacker", BinPackingFitnessCalculators.cpuMemBinPacker);
-            return fcr;
-        }
 
         /**
          * Build the taskScheduler based on the schema.
@@ -125,26 +137,11 @@ class FelkFramework {
         Builder withSchema(final Schema schema) {
             // Input validation needs to have been done prior to this.
             pendingTaskQueue = schema.getTasks();
-            // If no fitness calculator specified, then we're not going to be using one.
-            if (schema.getFitnessCalculator() != null) {
-                taskSchedulerBuilder.withFitnessCalculator(
-                        fitnessCalculators.get(schema.getFitnessCalculator()));
-            }
-            // If lease offer expiry not specified (or is 0), then not explicitly specifying
-            // (using default 120 seconds).
-            if (schema.getLeaseOfferExpirySeconds() > 0) {
-                taskSchedulerBuilder.withLeaseOfferExpirySecs(
-                        schema.getLeaseOfferExpirySeconds());
-            }
-            if (schema.isDisableShortfallEvaluation()) {
-                taskSchedulerBuilder.disableShortfallEvaluation();
-            }
-
-            // Default lease reject action is 'decline'.
-            // Right now, we have only one kind of action that can be specified.
-            // Modify code when we have non-default lease reject actions specifiable.
-            taskSchedulerBuilder.withLeaseRejectAction(new LeaseRejectActionBuilder()
-                    .withLeaseRejectAction(schema.getLeaseRejectAction()).build());
+            // Initializing parameters required to build the task scheduler.
+            fitnessCalculator = schema.getFitnessCalculator();
+            leaseOfferExpirySeconds = schema.getLeaseOfferExpirySeconds();
+            isShortFallEvaluationDisabled = schema.isDisableShortfallEvaluation();
+            leaseRejectActionName = schema.getLeaseRejectAction();
             return this;
         }
 
@@ -184,6 +181,9 @@ class FelkFramework {
     }
 
     private FelkFramework(final Builder builder) {
+        initLeaseRejectActions();
+        initFitnessCalculators();
+
         // Assigning unique task ID to every instance of every pending task.
         TaskUtils.TaskIdGenerator.assignTaskIds(builder.pendingTaskQueue);
         // Creating pendingTasks map. For each instance of each task, an entry is made.
@@ -195,7 +195,32 @@ class FelkFramework {
                 pendingTasks.put(t.getId(), t);
             }
         });
-        taskScheduler = builder.taskSchedulerBuilder.build();
+
+        // Building the task scheduler.
+        // If no fitness calculator specified, then we're not going to be using one.
+        TaskScheduler.Builder taskSchedulerBuilder = new TaskScheduler.Builder();
+        if ((builder.fitnessCalculator != null) && !(builder.fitnessCalculator.trim().equals(""))) {
+            taskSchedulerBuilder.withFitnessCalculator(
+                    fitnessCalculators.get(builder.fitnessCalculator));
+        } else {
+            throw new IllegalArgumentException("Invalid fitness calculator specified!");
+        }
+
+        // If lease offer expiry not specified (or is 0), then not explicitly specifying
+        // (using default 120 seconds).
+        if (builder.leaseOfferExpirySeconds > 0) {
+            taskSchedulerBuilder.withLeaseOfferExpirySecs(builder.leaseOfferExpirySeconds);
+        }
+        if (builder.isShortFallEvaluationDisabled) {
+            taskSchedulerBuilder.disableShortfallEvaluation();
+        }
+
+        // Default lease reject action is 'decline'. Right now, we have only one kind of action
+        // that can be specified.
+        taskSchedulerBuilder.withLeaseRejectAction(leaseRejectActions.get(builder
+                .leaseRejectActionName));
+
+        taskScheduler = taskSchedulerBuilder.build();
         leasesQueue = new LinkedBlockingQueue<>();
         launchedTasks = new HashMap<>();
         runningTasks = new HashMap<>();
