@@ -16,6 +16,7 @@ package com.sunybingcloud.felk.config.task;
 import org.apache.mesos.Protos;
 
 import java.util.Collection;
+import java.util.UUID;
 
 public final class TaskUtils {
     public static final class TaskIdGenerator {
@@ -27,8 +28,7 @@ public final class TaskUtils {
          * @return a unique identifier for the task.
          */
         static String createTaskID(final String taskName, final int instance) {
-            // This is a very naive way of creating identifiers.
-            return "Felk-" + taskName + "-" + instance;
+            return "Felk-" + taskName + "-" + instance + "-" + UUID.randomUUID().toString();
         }
 
         /**
